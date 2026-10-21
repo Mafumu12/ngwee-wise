@@ -1,0 +1,39 @@
+x-wallet: &wallet
+  build: ./services/wallet
+  user: "${UID:-1000}:${GID:-1000}"
+  volumes: ["./services/wallet:/app"]
+  depends_on:
+    mysql: { condition: service_healthy }
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ngwee
+      MYSQL_USER: ngwee
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root
+    ports: ["3306:3306"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./infra/mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      retries: 20
+
+  wallet:
+    <<: *wallet
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    ports: ["8000:8000"]
+
+  wallet-queue:
+    <<: *wallet
+    command: php artisan queue:work --tries=5 --backoff=10
+
+  wallet-scheduler:
+    <<: *wallet
+    command: php artisan schedule:work
+
+volumes:
+  mysql-data:

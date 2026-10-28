@@ -64,10 +64,49 @@ Decision: GO.
 
 ## B — Payouts + forced failure
 
+
+
 Goal: batch payout to a sandbox publisher; learn duplicate sender\_batch\_id behaviour; force a failed item.
-Ran:
+
+
+
+Ran: POST /v1/payments/payouts, one batch (AT2B8YJVJT2BS), 3 × $1.00 items: US publisher,
+
+ZM personal account, unregistered email. Polled GET /v1/payments/payouts/{id}. Re-sent same body.
+
+
+
 Result:
-Decision:
+
+\- spikeB-ok: SUCCESS. spikeB-zm: FAILED / RECEIVER\_COUNTRY\_NOT\_ALLOWED.
+
+&#x20; spikeB-unclaimed: UNCLAIMED / RECEIVER\_UNREGISTERED (funds return after 30 days if unclaimed).
+
+\- Batch status SUCCESS even with failed items → track state per item, not per batch.
+
+\- Duplicate sender\_batch\_id → USER\_BUSINESS\_ERROR "Batch with given sender\_batch\_id already exists",
+
+&#x20; with a link to the original batch. Safe idempotency key; adapter treats this as "already sent"
+
+&#x20; and fetches the existing batch.
+
+\- Webhooks: PAYOUTSBATCH.PROCESSING plus one PAYOUTS-ITEM.{SUCCEEDED,FAILED,UNCLAIMED} per item.
+
+&#x20; No PAYOUTSBATCH.SUCCESS event received → polling fallback required.
+
+\- UNCLAIMED must be a held state, not reversed: cancel the unclaimed item first, then reverse,
+
+&#x20; to avoid paying twice.
+
+\- Real failures are producible in sandbox; no adapter fault injection needed for the demo.
+
+
+
+Decision: GO.
+
+
+
+
 
 ## C — Vault merchant-initiated charge (60 min cap)
 
